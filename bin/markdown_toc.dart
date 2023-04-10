@@ -21,6 +21,14 @@
 // double underline (i.e. equal signs) to format it. And all other headings
 // should use the "#" format.
 //
+// **Organisation**
+//
+// This program has been written as a single Dart file that does not use any
+// external libraries. This is so it can be copied anywhere and run (even into
+// non-Dart projects, e.g.  under directories where _pubspec.yaml_ is not
+// found).  All that is required is the _dart_ executable to be available.
+//
+// Copyright 2022, 2023, Hoylen Sue.
 //----------------------------------------------------------------
 
 import 'dart:io';
@@ -28,11 +36,29 @@ import 'dart:io';
 //----------------------------------------------------------------
 
 const program = 'markdown_toc';
-const version = '1.0.0';
+const version = '1.1.0';
 
 //----------------------------------------------------------------
+/// The top level is the heading level at which numbering starts.
+///
+/// Headings at a lower level are ignored: they are not numbered and do not
+/// appear in the table of contents.
+///
+/// The value of 2 is usually used, so that a level 1 heading (represented with
+/// the equal sign underlining Markdown syntax) can be used for the title.
 
 const defaultTopLevel = 2;
+
+/// The maximum level is the heading level at which numbering stops.
+///
+/// Headings at a lower level are ignored: they are not numbered and do not
+/// appear in the table of contents.
+///
+/// The value of 5, with a top-level of 2, means level 5 headings (formated as
+/// "#####") will have numbers like 1.2.3.4. That is, there won't be numbers
+/// like 1.2.3.4.5.
+
+const defaultMaxLevel = 5;
 
 //################################################################
 /// Options from the command line.
@@ -48,12 +74,19 @@ class Options {
     final filenames = <String>[];
     var strip = false;
     var topLevel = defaultTopLevel;
+    var maxLevel = defaultMaxLevel;
     var verbose = false;
     var outputReplace = false;
     String? outputFile;
 
     // Doing our own command line parsing to avoid the need for external
     // packages, so this program can be run without needing a pubspec.yaml file.
+
+    if (arguments.isEmpty) {
+      stderr.writeln('$exeName: usage error: missing markdown file(s)\n');
+      _showHelp(exeName);
+      exit(2);
+    }
 
     var index = 0;
     while (index < arguments.length) {
@@ -95,6 +128,26 @@ class Options {
           }
           break;
 
+        case '-m':
+        case '--max-level':
+          try {
+            final str = arguments[index++];
+            try {
+              maxLevel = int.parse(str);
+              if (maxLevel <= 0) {
+                _usageError(exeName,
+                    'max-level: level must be greater than zero: $maxLevel');
+              } else if (10 < maxLevel) {
+                _usageError(exeName, 'max-level: level too large: $maxLevel');
+              }
+            } on FormatException {
+              _usageError(exeName, 'max-level: not an integer: $str');
+            }
+          } on RangeError {
+            _usageError(exeName, 'max-level: missing argument');
+          }
+          break;
+
         case '-v':
         case '--verbose':
           verbose = true;
@@ -106,19 +159,7 @@ class Options {
 
         case '-h':
         case '--help':
-          stdout.write('''
-Usage: $exeName [options] markdown-file
-Options:
--s | --strip        remove ToC and numbering, instead of adding/updating them
--t | --top-level N  heading level at top level (default: $defaultTopLevel)
-
--o | --output FILE  write result to named output file (default: stdout)
--r | --replace      replace input file with the result instead of to output
-
--v | --verbose      output extra information when running    
-     --version      display version information and exit
--h | --help         display this help and exit
-''');
+          _showHelp(exeName);
           exit(0);
 
         default:
@@ -131,12 +172,18 @@ Options:
       }
     }
 
+    if (maxLevel <= topLevel) {
+      // This is not an error, but pointless. Since it produces no numbering and
+      // an empty table of contents.
+      stderr.writeln('$exeName: warning: top level is less than max level');
+    }
+
     if (outputReplace && outputFile != null) {
       _usageError(exeName, 'cannot specify both --replace and --output');
     }
 
     if (filenames.isEmpty) {
-      _usageError(exeName, 'missing markdown file (-h for help)');
+      _usageError(exeName, 'missing markdown file(s) (-h for help)');
     } else if (1 < filenames.length) {
       if (!outputReplace) {
         _usageError(exeName,
@@ -144,17 +191,37 @@ Options:
       }
     }
 
-    return Options._init(filenames, topLevel,
+    return Options._init(filenames, topLevel, maxLevel,
         strip: strip,
         verbose: verbose,
         outputReplace: outputReplace,
         outputFile: outputFile);
   }
 
+  //----------------
+
+  static void _showHelp(String exeName) {
+    stdout.write('''
+Usage: $exeName [options] {markdown-files}
+Options:
+-t | --top-level N  lowest numbered heading level (default: $defaultTopLevel)
+-m | --max-level N  highest numbered heading level (default: $defaultMaxLevel)
+
+-o | --output FILE  write result to named output file (default: stdout)
+-r | --replace      replace input file with the result instead of to output
+
+-s | --strip        remove ToC and numbering, instead of adding/updating them
+
+-v | --verbose      output extra information when running
+     --version      display version information and exit
+-h | --help         display this help and exit
+''');
+  }
+
   //----------------------------------------------------------------
   /// Internal constructor.
 
-  Options._init(this.filenames, this.topLevel,
+  Options._init(this.filenames, this.topLevel, this.maxLevel,
       {this.strip = false,
       this.verbose = false,
       this.outputReplace = false,
@@ -162,14 +229,47 @@ Options:
 
   //================================================================
 
+  /// The input files to process.
+
   List<String> filenames;
 
+  /// Mode of operation.
+  ///
+  /// Whether to add/update number and ToC, or to remove them.
+
   bool strip;
+
+  /// The top level is the heading level at which numbering starts.
+  /// Headings at a lower level are ignored: they are not numbered and do not
+  /// appear in the table of contents.
+  ///
+  /// The value of 2 is usually used, so that a level 1 heading is used as the
+  /// title.
+
   int topLevel;
-  bool verbose;
+
+  /// The maximum level is the heading level at which numbering stops.
+  /// Headings at a lower level are ignored: they are not numbered and do not
+  /// appear in the table of contents.
+
+  int maxLevel;
+
+  /// Output destination.
+  ///
+  /// True means write the output to the input file, replacing its contents.
+  /// False means write the output to the destination indicated by [outputFile].
 
   bool outputReplace;
+
+  /// Output destination file.
+  ///
+  /// Null means write to _stdout_.
+
   String? outputFile;
+
+  /// Output more details.
+
+  bool verbose;
 
   //================================================================
 
@@ -178,6 +278,7 @@ Options:
     exit(2);
   }
 }
+
 //################################################################
 
 class TocEntry {
@@ -198,7 +299,8 @@ class TocProcessor {
   //================================================================
   // Constructors
 
-  TocProcessor({this.topLevel = 1, this.strip = false});
+  TocProcessor(
+      {required this.topLevel, required this.maxLevel, this.strip = false});
 
   //================================================================
   // Constants
@@ -215,7 +317,35 @@ class TocProcessor {
   //================================================================
   // Members
 
+  /// The top level is the heading level at which numbering starts.
+  /// Headings at a lower level are ignored: they are not numbered and do not
+  /// appear in the table of contents.
+  ///
+  /// The value of 2 is usually used, so that a level 1 heading is used as the
+  /// title.
+
   final int topLevel;
+
+  /// The maximum level is the heading level at which numbering stops.
+  ///
+  /// Headings at a lower level are ignored: they are not numbered and do not
+  /// appear in the table of contents.
+  ///
+  /// For example, if _topLevel_ is 2 and _maxLevel_ is 5, the h1 element will
+  /// be used for the level 1 headings (produced with underlying with equal
+  /// signs Markdown). And the table of contents will have these numbered
+  /// heading levels:
+  ///
+  /// > 1. Heading with h2 element (produced with `##` Markdown)
+  /// > 1.1. Heading with h3 element (produced with `###` Markdown)
+  /// > 1.1.1 Heading with h4 element (produced with `###` Markdown)
+  /// > 1.1.1.1 Heading with h5 element (produced with `###` Markdown)
+  ///
+  /// There will be no 1.1.1.1.1 numbering. But the heading, if present in the
+  /// markdown, will still appear in the body.
+
+  final int maxLevel;
+
   final bool strip;
 
   final beforeToc = <String>[];
@@ -233,11 +363,19 @@ class TocProcessor {
     var previousLevel = topLevel;
     final numbers = <int>[0];
 
+    // Process each line of the input file
+
     for (final l in lines) {
       var line = l;
       bool normalLine;
 
-      final match = RegExp(r'^ *(#+)[ \t]*[\d.]*[ \t]*(.*)$').firstMatch(line);
+      // Determine if the line is a "#" syntax Markdown heading or not.
+      //
+      // Note: in normal Markdown, header lines can start with optional
+      // whitespace (e.g. "  ## A heading"). But this utility does not recognise
+      // them as headings, so quoted blocks can contain Markdown examples.
+
+      final match = RegExp(r'^(#+)[ \t]*[\d.]*[ \t]*(.*)$').firstMatch(line);
       if (match != null) {
         // Heading line
 
@@ -278,7 +416,7 @@ class TocProcessor {
           assert(position == Position.afterToc);
           final currentLevel = hashes.length;
 
-          if (topLevel <= currentLevel) {
+          if (topLevel <= currentLevel && currentLevel <= maxLevel) {
             // Process heading
 
             if (previousLevel == currentLevel) {
@@ -307,10 +445,11 @@ class TocProcessor {
               afterToc.add('$hashes $text');
             }
           } else {
-            // Heading is higher than the topLevel: treat as non-heading
-            // without any numbers.
+            // Heading is above than the topLevel or is below the maximum level.
+            // Treat as non-heading (i.e. without any numbers).
             line = '$hashes $text';
             normalLine = true;
+            saveHeading = false; // do not include in ToC
           }
         }
 
@@ -318,14 +457,17 @@ class TocProcessor {
           tocEntries.add(TocEntry(hashes.length, numbers.join('.'), text));
         }
       } else if (line.startsWith('$_tocAnchorTagStart="$_tocAnchorPrefix')) {
-        // Do not include previously generated table of content anchor tags
+        // Syntax matches a heading line, but this is the heading that says
+        // "Table of Contents" that was inserted by a previous run.
+        // Ignore it.
         normalLine = false;
       } else {
+        // Non-heading line
         normalLine = true;
       }
 
       if (normalLine) {
-        // Non-heading line
+        // Non-heading line to be kept (unless currently in ToC)
 
         switch (position) {
           case Position.beforeToc:
@@ -402,6 +544,7 @@ class TocProcessor {
 
 Future<void> processFile(String exeName, String filename,
     {int topLevel = defaultTopLevel,
+    int maxLevel = defaultMaxLevel,
     bool strip = false,
     bool verbose = false,
     bool outputReplace = false,
@@ -409,7 +552,8 @@ Future<void> processFile(String exeName, String filename,
   assert(!(outputReplace && outputFile != null),
       'cannot replace input file if an output file was specified');
 
-  final processor = TocProcessor(topLevel: topLevel, strip: strip);
+  final processor =
+      TocProcessor(topLevel: topLevel, maxLevel: maxLevel, strip: strip);
 
   final sourceFile = File(filename);
   processor.parse(sourceFile.readAsLinesSync());
@@ -449,7 +593,6 @@ Future<void> processFile(String exeName, String filename,
     await sourceFile.rename(backupFile.path); // move original to safe keeping
     await newFile.rename(filename); // move new contents to original filename
     await backupFile.delete(); // delete original
-
   } else {
     // Print output to specified filename or stdout
 
@@ -471,6 +614,7 @@ Future<void> main(List<String> arguments) async {
     for (final filename in options.filenames) {
       await processFile(exeName, filename,
           topLevel: options.topLevel,
+          maxLevel: options.maxLevel,
           strip: options.strip,
           verbose: options.verbose,
           outputReplace: options.outputReplace,
