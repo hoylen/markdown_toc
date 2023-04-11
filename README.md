@@ -1,4 +1,4 @@
-Adds a table of contents and numbered headings to a Markdown file.
+Utility to number headings and generate Table of contents for Markdown files.
 
 ## Table of Contents
 
@@ -26,10 +26,14 @@ This utility adds heading numbers and a table of contents to a
 Markdown file. It is used to make large Markdown files easier to
 navigate and read.
 
-This README has been processed by the utility, which automatically
+This is a program to be run from the command line. It is not a Dart
+library for use in other Dart programs or packages.
+
+_Note: this README has been processed by the utility, which automatically
 produced the above Table of Contents and the numbered headings. Note:
 the Markdown in the examples start with extra indenting to prevent the
-utility from recognising their contents as headings for it to process.
+utility from recognising their contents as headings for it to
+process._
 
 For example, it takes a Markdown file containing:
 
@@ -219,7 +223,7 @@ Produces:
 Use the `--strip` option to remove the information added by the utility.
 
 ```shell
-$ markdow_toc.dart --strip example-with-toc.md
+$ markdown_toc.dart --strip example-with-toc.md
 ```
 
 <a class="markdown-toc-generated" id="3"></a>
@@ -280,7 +284,7 @@ $ dart pub global activate markdown_toc
 If the global directory is on the PATH, the utility can be run using:
 
 ```shell
-$ markdow_toc --help
+$ markdown_toc --help
 ```
 
 Or it can always be run with:
@@ -318,5 +322,5 @@ without needing the Dart executable.
 ```shell
 dart compile exe bin/markdown_toc.dart
 
-bin/markdow_toc --help
+bin/markdown_toc --help
 ```
