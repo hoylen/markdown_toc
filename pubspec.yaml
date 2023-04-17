@@ -12,4 +12,5 @@ dev_dependencies:
   pana: ^0.21.27
 
 executables:
-  markdown_toc
+  markdown_toc:
+
