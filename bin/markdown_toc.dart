@@ -36,7 +36,7 @@ import 'dart:io';
 //----------------------------------------------------------------
 
 const program = 'markdown_toc';
-const version = '1.1.0';
+const version = '1.1.1';
 
 //----------------------------------------------------------------
 /// The top level is the heading level at which numbering starts.
@@ -370,12 +370,9 @@ class TocProcessor {
       bool normalLine;
 
       // Determine if the line is a "#" syntax Markdown heading or not.
-      //
-      // Note: in normal Markdown, header lines can start with optional
-      // whitespace (e.g. "  ## A heading"). But this utility does not recognise
-      // them as headings, so quoted blocks can contain Markdown examples.
 
-      final match = RegExp(r'^(#+)[ \t]*[\d.]*[ \t]*(.*)$').firstMatch(line);
+      final match =
+          RegExp(r'^[ \t]*(#+)[ \t]*[\d.]*[ \t]*(.*)$').firstMatch(line);
       if (match != null) {
         // Heading line
 
