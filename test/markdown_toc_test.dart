@@ -45,7 +45,8 @@ void tests() {
       final inputLines = inputFile.readAsLinesSync();
 
       const topLevel = 2;
-      const maxLevel = 5;
+      const numLevel = 5;
+      const tocLevel = 6;
       const strip = false;
 
       // Load the expected output
@@ -59,8 +60,11 @@ void tests() {
 
       // Test if the processor produces the expected output
 
-      final processor =
-          TocProcessor(topLevel: topLevel, maxLevel: maxLevel, strip: strip);
+      final processor = TocProcessor(
+          topLevel: topLevel,
+          numLevel: numLevel,
+          tocLevel: tocLevel,
+          strip: strip);
 
       processor.parse(inputLines);
 

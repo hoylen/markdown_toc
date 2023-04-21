@@ -36,7 +36,7 @@ import 'dart:io';
 //----------------------------------------------------------------
 
 const program = 'markdown_toc';
-const version = '1.1.1';
+const version = '1.2.0';
 
 //----------------------------------------------------------------
 /// The top level is the heading level at which numbering starts.
@@ -54,11 +54,20 @@ const defaultTopLevel = 2;
 /// Headings at a lower level are ignored: they are not numbered and do not
 /// appear in the table of contents.
 ///
-/// The value of 5, with a top-level of 2, means level 5 headings (formated as
+/// The value of 5, with a top-level of 2, means level 5 headings (formatted as
 /// "#####") will have numbers like 1.2.3.4. That is, there won't be numbers
 /// like 1.2.3.4.5.
 
-const defaultMaxLevel = 5;
+const defaultMaxNumLevel = 5;
+
+/// The maximum level of headings to include in the table of contents.
+///
+/// The value of 4, with a top-level of 2, means the table of contents will
+/// include headings down to "####" (if numbered, these will be 1.2.3.). Deeper
+/// headings (i.e. those marked as "#####" or have numbers 1.2.3.4) will not
+/// appear in the table of contents.
+
+const defaultMaxTocLevel = 4;
 
 //################################################################
 /// Options from the command line.
@@ -74,7 +83,8 @@ class Options {
     final filenames = <String>[];
     var strip = false;
     var topLevel = defaultTopLevel;
-    var maxLevel = defaultMaxLevel;
+    var maxNumberingLevel = defaultMaxNumLevel;
+    var maxTocLevel = defaultMaxTocLevel;
     var verbose = false;
     var outputReplace = false;
     String? outputFile;
@@ -128,23 +138,45 @@ class Options {
           }
           break;
 
-        case '-m':
-        case '--max-level':
+        case '-n':
+        case '--num-level':
           try {
             final str = arguments[index++];
             try {
-              maxLevel = int.parse(str);
-              if (maxLevel <= 0) {
+              maxNumberingLevel = int.parse(str);
+              if (maxNumberingLevel <= 0) {
                 _usageError(exeName,
-                    'max-level: level must be greater than zero: $maxLevel');
-              } else if (10 < maxLevel) {
-                _usageError(exeName, 'max-level: level too large: $maxLevel');
+                    'num-level: level must be greater than zero: $maxNumberingLevel');
+              } else if (10 < maxNumberingLevel) {
+                _usageError(
+                    exeName, 'num-level: level too large: $maxNumberingLevel');
               }
             } on FormatException {
-              _usageError(exeName, 'max-level: not an integer: $str');
+              _usageError(exeName, 'num-level: not an integer: $str');
             }
           } on RangeError {
-            _usageError(exeName, 'max-level: missing argument');
+            _usageError(exeName, 'num-level: missing argument');
+          }
+          break;
+
+        case '-i':
+        case '--toc-level':
+          try {
+            final str = arguments[index++];
+            try {
+              maxTocLevel = int.parse(str);
+              if (maxTocLevel <= 0) {
+                _usageError(exeName,
+                    'toc-level: level must be greater than zero: $maxTocLevel');
+              } else if (10 < maxTocLevel) {
+                _usageError(
+                    exeName, 'toc-level: level too large: $maxTocLevel');
+              }
+            } on FormatException {
+              _usageError(exeName, 'toc-level: not an integer: $str');
+            }
+          } on RangeError {
+            _usageError(exeName, 'toc-level: missing argument');
           }
           break;
 
@@ -172,7 +204,7 @@ class Options {
       }
     }
 
-    if (maxLevel <= topLevel) {
+    if (maxNumberingLevel <= topLevel) {
       // This is not an error, but pointless. Since it produces no numbering and
       // an empty table of contents.
       stderr.writeln('$exeName: warning: top level is less than max level');
@@ -191,7 +223,7 @@ class Options {
       }
     }
 
-    return Options._init(filenames, topLevel, maxLevel,
+    return Options._init(filenames, topLevel, maxNumberingLevel, maxTocLevel,
         strip: strip,
         verbose: verbose,
         outputReplace: outputReplace,
@@ -205,7 +237,9 @@ class Options {
 Usage: $exeName [options] {markdown-files}
 Options:
 -t | --top-level N  lowest numbered heading level (default: $defaultTopLevel)
--m | --max-level N  highest numbered heading level (default: $defaultMaxLevel)
+-n | --num-max N    highest heading to number (default: $defaultMaxNumLevel)
+-i | --toc-max N    highest heading level to include in table of contents
+                    (default: $defaultMaxTocLevel)
 
 -o | --output FILE  write result to named output file (default: stdout)
 -r | --replace      replace input file with the result instead of to output
@@ -221,7 +255,7 @@ Options:
   //----------------------------------------------------------------
   /// Internal constructor.
 
-  Options._init(this.filenames, this.topLevel, this.maxLevel,
+  Options._init(this.filenames, this.topLevel, this.numLevel, this.tocLevel,
       {this.strip = false,
       this.verbose = false,
       this.outputReplace = false,
@@ -252,7 +286,11 @@ Options:
   /// Headings at a lower level are ignored: they are not numbered and do not
   /// appear in the table of contents.
 
-  int maxLevel;
+  int numLevel;
+
+  /// The maximum level heading to include in the table of contents.
+
+  int tocLevel;
 
   /// Output destination.
   ///
@@ -300,7 +338,10 @@ class TocProcessor {
   // Constructors
 
   TocProcessor(
-      {required this.topLevel, required this.maxLevel, this.strip = false});
+      {required this.topLevel,
+      required this.numLevel,
+      required this.tocLevel,
+      this.strip = false});
 
   //================================================================
   // Constants
@@ -344,7 +385,9 @@ class TocProcessor {
   /// There will be no 1.1.1.1.1 numbering. But the heading, if present in the
   /// markdown, will still appear in the body.
 
-  final int maxLevel;
+  final int numLevel;
+
+  final int tocLevel;
 
   final bool strip;
 
@@ -413,7 +456,7 @@ class TocProcessor {
           assert(position == Position.afterToc);
           final currentLevel = hashes.length;
 
-          if (topLevel <= currentLevel && currentLevel <= maxLevel) {
+          if (topLevel <= currentLevel && currentLevel <= numLevel) {
             // Process heading
 
             if (previousLevel == currentLevel) {
@@ -506,7 +549,7 @@ class TocProcessor {
       dest.writeln('## $_tocHeadingText\n');
 
       for (final entry in tocEntries) {
-        if (topLevel <= entry.level) {
+        if (topLevel <= entry.level && entry.level <= tocLevel) {
           String prefix;
           if (entry.level == topLevel) {
             prefix = entry.number; // this will be a Markdown numbered list
@@ -541,7 +584,8 @@ class TocProcessor {
 
 Future<void> processFile(String exeName, String filename,
     {int topLevel = defaultTopLevel,
-    int maxLevel = defaultMaxLevel,
+    int numLevel = defaultMaxNumLevel,
+    int tocLevel = defaultMaxTocLevel,
     bool strip = false,
     bool verbose = false,
     bool outputReplace = false,
@@ -549,8 +593,8 @@ Future<void> processFile(String exeName, String filename,
   assert(!(outputReplace && outputFile != null),
       'cannot replace input file if an output file was specified');
 
-  final processor =
-      TocProcessor(topLevel: topLevel, maxLevel: maxLevel, strip: strip);
+  final processor = TocProcessor(
+      topLevel: topLevel, numLevel: numLevel, tocLevel: tocLevel, strip: strip);
 
   final sourceFile = File(filename);
   processor.parse(sourceFile.readAsLinesSync());
@@ -611,7 +655,8 @@ Future<void> main(List<String> arguments) async {
     for (final filename in options.filenames) {
       await processFile(exeName, filename,
           topLevel: options.topLevel,
-          maxLevel: options.maxLevel,
+          numLevel: options.numLevel,
+          tocLevel: options.tocLevel,
           strip: options.strip,
           verbose: options.verbose,
           outputReplace: options.outputReplace,

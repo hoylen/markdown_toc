@@ -99,7 +99,8 @@ numbers. That is, to revert it back to the original input Markdown.
 Usage: markdown_toc [options] {markdown-files}
 Options:
 -t | --top-level N  lowest numbered heading level (default: 2)
--m | --max-level N  highest numbered heading level (default: 5)
+-n | --num-level N  highest heading level to number (default: 5)
+-i | --toc-level N  highest heading level to include in table of contents (default: 4)
 
 -o | --output FILE  write result to named output file (default: stdout)
 -r | --replace      replace input file with the result instead of to output
@@ -157,9 +158,14 @@ underline syntax. It will ignore the title (i.e. not number it and not
 include it in the table of contents) and insert the table of contents
 immediately before the first non-ignored heading.
 
-And the maximum level is 5. Headings at level 6 and greater
-(i.e. those starting with Markdown "######") will not be numbered and
-will not appear in the table of contents.
+And the default maximum numbered level is 5. Headings at level 6 and
+greater (i.e. those starting with Markdown "######") will not be
+numbered.
+
+The maximum level to include in the table of contents is 4. Headings
+at level 5 and greater (i.e. those starting with Markdown "#####")
+will not be included in the table of contents (even if they are
+numbered).
 
 For example,
 
@@ -196,7 +202,7 @@ Will produce:
 #### 2.5.2. Changing the level of processed headings
 
 The heading levels which are processed is changed using the
-`--top-level` and `--max-level` options.
+`--top-level`, `--num-level` and `--toc-level` options.
 
 For example, some Markdown files use a metadata block for the document
 title and level 1 headings used as normal headings.
